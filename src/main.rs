@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+extern crate rand;
+use rand::Rng;
 
 type Player = [i8; 7];
 
@@ -98,6 +100,17 @@ impl Game {
         }
         Some(n)
     }
+
+    fn possible(&self) -> Vec<usize> {
+        let side = self.t as usize;                
+        let mut res: Vec<usize> = Vec::new();
+        for i in 0..6 {
+            if self.p[side][i] != 0 {
+                res.push(i);
+            }
+        }
+        res
+    }
 }
 
 // next computes all the posible games for the next turn
@@ -118,13 +131,32 @@ fn next(g: &Game) -> Vec<Game> {
     res
 }
 
-fn main() {
-    let mut g = Game::new();
-    //g.p[0][0] = 6;
+fn show_first_row() {
+    let g = Game::new();
     g.print();
     println!("{:?}", g.state());
-    //g.step(0).unwrap().print();
     for t in next(&g).into_iter() {
         t.print();
     }
+}
+
+fn play_random_game() {
+    let mut g = Game::new();
+    let mut rng = rand::thread_rng();
+    loop {
+        g.print();
+        let state = g.state();
+        if state != State::InProgress {
+            println!("{:?}", state);
+            return;
+        }
+        
+        let possibilities = next(&g);
+        let n = possibilities.len();
+        g = possibilities[rng.gen_range(0, n)].clone();
+    }
+}
+
+fn main() {
+    play_random_game();
 }
