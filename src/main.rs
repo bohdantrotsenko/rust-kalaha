@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 extern crate rand;
 use rand::Rng;
+use std::collections::*;
 
 type Player = [i8; 7];
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct Game {
     p: [Player; 2],
     t: i8,
@@ -14,7 +15,7 @@ fn new_player() -> Player {
     [4,4,4,4,4,4,0]
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum State {
     InProgress,
     Draw,
@@ -144,6 +145,8 @@ fn play_random_game() {
     let mut g = Game::new();
     let mut rng = rand::thread_rng();
     loop {
+        println!("-----------------------------");
+        println!("{:?}", g);
         g.print();
         let state = g.state();
         if state != State::InProgress {
@@ -157,6 +160,72 @@ fn play_random_game() {
     }
 }
 
+fn find_outcome(g: &Game, cache: &mut HashMap<Game, (State, i8)>) -> (State, i8) {
+    let gstate = g.state();
+    if gstate != State::InProgress {
+        return (gstate, -1);
+    }
+    if let Some(ans) = cache.get(&g) {
+        return ans.clone();
+    }
+
+    let player = g.t;
+    let mut best = State::Win(1 - player); // initialize the best with worst-case scenario -- winning of the other player
+    let mut step: i8 = -1;
+
+    for i in 0..6 {
+        if let Some(ng) = g.step(i) {
+            let outcome = find_outcome(&ng, cache);
+            match outcome.0 {
+                State::InProgress => panic!(),
+                State::Draw => {
+                    if best != State::Draw {
+                        best = State::Draw;
+                        step = i as i8;
+                    }
+                },
+                State::Win(p) => {
+                    if p == player { // that's the best outcome
+                        best = outcome.0;
+                        step = i as i8;
+                        break; // no need to search further
+                    } else {
+                        // that's the worst outcome
+                        if best != State::Draw {
+                            step = i as i8; // only update the step
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    debug_assert!(step >= 0, "best case must always be found");
+
+    let ans = (best, step);
+    cache.insert(g.clone(), ans.clone());
+    ans
+}
+
+fn experiment_with_outcomes() {
+    let mut g = Game { p: [[1, 2, 0, 0, 1, 0, 30], [1, 0, 0, 0, 1, 1, 11]], t: 0 };
+    let mut cache: HashMap<Game, (State, i8)> = HashMap::new();
+    let mut outcome = find_outcome(&g, &mut cache);
+    println!("Outcome: {:?}", outcome);
+    println!("Positions in cache: {}", cache.len());
+
+    loop {
+        g.print();
+        if g.state() == State::InProgress {
+            g = g.step(outcome.1 as usize).unwrap();
+            outcome = find_outcome(&g, &mut cache);
+        } else {
+            break;
+        }
+    }
+}
+
 fn main() {
-    play_random_game();
+    //play_random_game();
+    experiment_with_outcomes();
 }
