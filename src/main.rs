@@ -208,8 +208,8 @@ fn find_outcome(g: &Game, cache: &mut HashMap<Game, (State, i8)>) -> (State, i8)
 }
 
 fn experiment_with_outcomes() {
-    let mut g = Game { p: [[3, 0, 3, 0, 8, 2, 12], [0, 1, 3, 3, 1, 1, 11]], t: 0 };
-    let mut cache: HashMap<Game, (State, i8)> = HashMap::new();
+    let mut g = Game { p: [[3, 5, 2, 1, 6, 1, 10], [4, 0, 2, 2, 2, 1, 9]], t: 0 };
+    let mut cache: HashMap<Game, (State, i8)> = HashMap::with_capacity(10_000_000);
     let mut outcome = find_outcome(&g, &mut cache);
     println!("Outcome: {:?}", outcome);
     println!("Positions in cache: {}", cache.len());
