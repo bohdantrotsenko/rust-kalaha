@@ -1,0 +1,6 @@
+[package]
+name = "rust-kalaha"
+version = "0.1.0"
+authors = ["Bohdan Trotsenko <bohdan@trotsenko.com.ua>"]
+
+[dependencies]
