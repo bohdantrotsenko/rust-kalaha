@@ -5,3 +5,4 @@ authors = ["Bohdan Trotsenko <bohdan@trotsenko.com.ua>"]
 
 [dependencies]
 rand = "0.3.15"
+num_cpus = "1.4.0"
