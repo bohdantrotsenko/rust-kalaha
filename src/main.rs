@@ -12,8 +12,7 @@ struct Game {
 }
 
 fn new_player() -> Player {
-//  [4,4,4,4,4,4,0]
-    [2,2,2,2,2,2,0]
+    [4,4,4,4,4,4,0]
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -161,65 +160,69 @@ fn play_random_game() {
     }
 }
 
-fn find_outcome(g: &Game, cache: &mut HashMap<Game, (State, i8)>) -> (State, i8) {
+fn find_outcome(g: &Game, cache: &mut HashMap<Game, State>, limit: &mut usize, known_wins: &HashSet<Game>, known_draws: &HashSet<Game>) -> State {
     let gstate = g.state();
     if gstate != State::InProgress {
-        return (gstate, -1);
+        return gstate;
     }
     if let Some(ans) = cache.get(&g) {
         return ans.clone();
     }
+    if known_wins.contains(g) {
+        println!("Used prior knownledge of won game {:?}", g);
+        return State::Win(g.t);
+    }    
+    if known_draws.contains(g) {
+        println!("Used prior knownledge of draw game {:?}", g);
+        return State::Draw;
+    }    
+    if *limit == 0 {
+        return State::InProgress;        
+    }
+    *limit -= 1;
 
     let player = g.t;
     let mut best = State::Win(1 - player); // initialize the best with worst-case scenario -- winning of the other player
-    let mut step: i8 = -1;
 
     for i in 0..6 {
         if let Some(ng) = g.step(i) {
-            let outcome = find_outcome(&ng, cache);
-            match outcome.0 {
-                State::InProgress => panic!(),
+            let outcome = find_outcome(&ng, cache, limit, known_wins, known_draws);
+            match outcome {
+                State::InProgress => return State::InProgress, // we've reached the limit
                 State::Draw => {
                     if best != State::Draw {
                         best = State::Draw;
-                        step = i as i8;
                     }
                 },
                 State::Win(p) => {
                     if p == player { // that's the best outcome
-                        best = outcome.0;
-                        step = i as i8;
+                        best = outcome;
                         break; // no need to search further
-                    } else {
-                        // that's the worst outcome
-                        if best != State::Draw {
-                            step = i as i8; // only update the step
-                        }
+                    } else {  // that's the worst outcome, nothing to do
                     }
                 }
             }
         }
     }
 
-    debug_assert!(step >= 0, "best case must always be found");
-
-    let ans = (best, step);
-    cache.insert(g.clone(), ans.clone());
-    ans
+    cache.insert(g.clone(), best.clone());
+    best
 }
 
-fn play_random_game2() {
+const LIMIT:usize = 1_500_000;
+
+fn get_knowledge(known_wins: &HashSet<Game>, known_draws: &HashSet<Game>) -> Option<(Game, State)> {
     let mut rng = rand::thread_rng();
     let mut games = Vec::new();
     let mut g = Game::new();
     loop {
-        println!("-----------------------------");
-        println!("{:?}", g);
-        g.print();
+        //println!("-----------------------------");
+        //println!("{:?}", g);
+        //g.print();
         games.push(g);
         let state = g.state();
         if state != State::InProgress {
-            println!("{:?}", state);
+            // println!("{:?}", state);
             break;
         }
         
@@ -227,45 +230,66 @@ fn play_random_game2() {
         let n = possibilities.len();
         g = possibilities[rng.gen_range(0, n)].clone();
     }
-    println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
-    let mut cache: HashMap<Game, (State, i8)> = HashMap::with_capacity(2_000_000);
-    while cache.len() < 700_000 {
+    // println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
+    let mut cache: HashMap<Game, State> = HashMap::with_capacity(LIMIT);
+    let mut knowledge: Option<(Game, State)> = None;
+    loop {
         if let Some(last) = games.pop() {
-            let outcome = find_outcome(&last, &mut cache);
-            last.print();
-            println!("Outcome: {:?}", outcome);
-            println!("Positions in cache: {}", cache.len());        
+            let mut limit = LIMIT;
+            let outcome = find_outcome(&last, &mut cache, &mut limit, known_wins, known_draws);
+            if limit == 0 {
+                // println!("reached limit");
+                break;
+            }
+            // last.print();
+            // println!("Outcome: {:?}", outcome);
+            // println!("Positions in cache: {}, steps taken: {}", cache.len(), LIMIT - limit);
+            if outcome == State::Win(last.t) || outcome == State::Draw {
+                knowledge = Some((last.clone(), outcome.clone()));
+            }
         }
         else {
             println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
             println!("GAME SOLVED");
             println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
-            return;
+            break;
         }
     }
+    // println!("Carried out knowledge: {:?}", knowledge);
+    knowledge
 }
 
-
-
-fn experiment_with_outcomes() {
-    let mut g = Game { p: [[0, 0, 0, 1, 2, 1, 20], [0, 0, 2, 1, 1, 0, 20]], t: 0 };
-    let mut cache: HashMap<Game, (State, i8)> = HashMap::with_capacity(2_000_000);
-    let mut outcome = find_outcome(&g, &mut cache);
-    println!("Outcome: {:?}", outcome);
-    println!("Positions in cache: {}", cache.len());
-
-    loop {
-        g.print();
-        if g.state() == State::InProgress {
-            g = g.step(outcome.1 as usize).unwrap();
-            outcome = find_outcome(&g, &mut cache);
-        } else {
-            break;
+fn learn() {
+    let mut known_wins: HashSet<Game> = HashSet::new();
+    let mut known_draws: HashSet<Game> = HashSet::new();
+    for _ in 0..10 {
+        if let Some((game, outcome)) = get_knowledge(&known_wins, &known_draws) {
+            println!("Random fact: {:?} {:?}", game, outcome);
+            match outcome {
+                State::Draw => known_draws.insert(game),
+                State::Win(p) => {
+                    debug_assert_eq!(p, game.t);
+                    known_wins.insert(game)
+                },
+                _ => panic!("unexpected outcome"),
+            };
         }
     }
 }
 
 fn main() {
-    play_random_game2();
+    learn();    
     //experiment_with_outcomes();
 }
+
+fn experiment_with_outcomes() {
+    let g = Game { p: [[0, 0, 0, 1, 2, 1, 20], [0, 0, 2, 1, 1, 0, 20]], t: 0 };
+    let mut cache: HashMap<Game, State> = HashMap::with_capacity(2_000_000);
+    let mut limit = 2_000_000;
+    let empty_knownledge: HashSet<Game> = HashSet::new();
+    let outcome = find_outcome(&g, &mut cache, &mut limit, &empty_knownledge, &empty_knownledge);
+    g.print();
+    println!("Outcome: {:?}", outcome);
+    println!("Positions in cache: {}", cache.len());
+}
+
