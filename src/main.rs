@@ -5,14 +5,15 @@ use std::collections::*;
 
 type Player = [i8; 7];
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct Game {
     p: [Player; 2],
     t: i8,
 }
 
 fn new_player() -> Player {
-    [4,4,4,4,4,4,0]
+//  [4,4,4,4,4,4,0]
+    [2,2,2,2,2,2,0]
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -207,9 +208,48 @@ fn find_outcome(g: &Game, cache: &mut HashMap<Game, (State, i8)>) -> (State, i8)
     ans
 }
 
+fn play_random_game2() {
+    let mut rng = rand::thread_rng();
+    let mut games = Vec::new();
+    let mut g = Game::new();
+    loop {
+        println!("-----------------------------");
+        println!("{:?}", g);
+        g.print();
+        games.push(g);
+        let state = g.state();
+        if state != State::InProgress {
+            println!("{:?}", state);
+            break;
+        }
+        
+        let possibilities = next(&g);
+        let n = possibilities.len();
+        g = possibilities[rng.gen_range(0, n)].clone();
+    }
+    println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
+    let mut cache: HashMap<Game, (State, i8)> = HashMap::with_capacity(2_000_000);
+    while cache.len() < 700_000 {
+        if let Some(last) = games.pop() {
+            let outcome = find_outcome(&last, &mut cache);
+            last.print();
+            println!("Outcome: {:?}", outcome);
+            println!("Positions in cache: {}", cache.len());        
+        }
+        else {
+            println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
+            println!("GAME SOLVED");
+            println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
+            return;
+        }
+    }
+}
+
+
+
 fn experiment_with_outcomes() {
-    let mut g = Game { p: [[3, 5, 2, 1, 6, 1, 10], [4, 0, 2, 2, 2, 1, 9]], t: 0 };
-    let mut cache: HashMap<Game, (State, i8)> = HashMap::with_capacity(10_000_000);
+    let mut g = Game { p: [[0, 0, 0, 1, 2, 1, 20], [0, 0, 2, 1, 1, 0, 20]], t: 0 };
+    let mut cache: HashMap<Game, (State, i8)> = HashMap::with_capacity(2_000_000);
     let mut outcome = find_outcome(&g, &mut cache);
     println!("Outcome: {:?}", outcome);
     println!("Positions in cache: {}", cache.len());
@@ -226,6 +266,6 @@ fn experiment_with_outcomes() {
 }
 
 fn main() {
-    //play_random_game();
-    experiment_with_outcomes();
+    play_random_game2();
+    //experiment_with_outcomes();
 }
