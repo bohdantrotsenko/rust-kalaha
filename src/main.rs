@@ -2,23 +2,25 @@
 extern crate rand;
 extern crate num_cpus;
 
+// see http://www.wikihow.com/Play-Kalaha for the description of the game
+
 use rand::Rng;
 use std::thread;
 use std::sync::*;
 use std::collections::*;
 
-const LIMIT:usize = 500_000;
+const LIMIT:usize = 500_000; // how many games should I play till I gather all the required data
 
-type Player = [i8; 7];
+type Player = [i8; 7]; // first 6 cells are regular cells, the last one is the super-cell
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct Game {
     p: [Player; 2],
-    t: i8,
+    t: i8, // turn of the game; 0 <==> first player, 1 <==> second player
 }
 
 fn new_player() -> Player {
-    [4,4,4,4,4,4,0]
+    [4,4,4,4,4,4,0] // the initial configuration in the classical game
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -54,7 +56,8 @@ impl Game {
         println!();
     }
 
-    fn state(&self) -> State {
+    // state makes the analysis of the game at the moment
+    fn state(&self) -> State { 
         let p0full: i8 = self.p[0].iter().sum();
         let p1full: i8 = self.p[1].iter().sum();
         let p0 = p0full - self.p[0][6];
@@ -72,6 +75,7 @@ impl Game {
         }
     }
 
+    // step makes the current player play turn s and returns the game's position
     fn step(&self, s: usize) -> Option<Game> {
         if s >= 6 { panic!("wrong start index"); }
         let mut n: Game = self.clone();
@@ -108,6 +112,7 @@ impl Game {
         Some(n)
     }
 
+    // possible yields all the posible /moves/ for the position
     fn possible(&self) -> Vec<usize> {
         let side = self.t as usize;                
         let mut res: Vec<usize> = Vec::new();
@@ -138,33 +143,6 @@ fn next(g: &Game) -> Vec<Game> {
     res
 }
 
-fn show_first_row() {
-    let g = Game::new();
-    g.print();
-    println!("{:?}", g.state());
-    for t in next(&g).into_iter() {
-        t.print();
-    }
-}
-
-fn play_random_game() {
-    let mut g = Game::new();
-    let mut rng = rand::thread_rng();
-    loop {
-        println!("-----------------------------");
-        println!("{:?}", g);
-        g.print();
-        let state = g.state();
-        if state != State::InProgress {
-            println!("{:?}", state);
-            return;
-        }
-        
-        let possibilities = next(&g);
-        let n = possibilities.len();
-        g = possibilities[rng.gen_range(0, n)].clone();
-    }
-}
 
 fn find_outcome(g: &Game, cache: &mut HashMap<Game, State>, limit: &mut usize, known_wins: &HashSet<Game>, known_draws: &HashSet<Game>, khits: &mut usize) -> State {
     let gstate = g.state();
@@ -264,13 +242,20 @@ fn get_knowledge(known_wins: &HashSet<Game>, known_draws: &HashSet<Game>) -> (Op
     (knowledge, khits)
 }
 
+// learn generates 'knowledge' by playing random games and saving outcomes
 fn learn() {
+    // this is a parallel version of the algorithm
+
     let rw_known_wins = Arc::new(RwLock::new(HashSet::new()));
     let rw_known_draws = Arc::new(RwLock::new(HashSet::new()));
+
     let mut khits_total = 0;
     let cpu_cores = num_cpus::get();
+
     for _ in 0..10_000 {
         let mut results = VecDeque::new();
+        
+        // spawn the threads
         for _ in 0..cpu_cores {
             let l_known_wins = rw_known_wins.clone();
             let l_known_draws = rw_known_draws.clone();
@@ -280,6 +265,8 @@ fn learn() {
                 get_knowledge(&known_wins, &known_draws)
             }));
         }
+
+        // get all the results
         while let Some(thread_handle) = results.pop_front() {
             let (knowledge, khits0) = thread_handle.join().expect("child thread should complete");
             khits_total += khits0;
@@ -309,6 +296,36 @@ fn main() {
     // let g = Game::new();
     learn();    
     //experiment_with_outcomes();
+}
+
+// less-important main-like functions:
+
+fn show_first_row() {
+    let g = Game::new();
+    g.print();
+    println!("{:?}", g.state());
+    for t in next(&g).into_iter() {
+        t.print();
+    }
+}
+
+fn play_random_game() {
+    let mut g = Game::new();
+    let mut rng = rand::thread_rng();
+    loop {
+        println!("-----------------------------");
+        println!("{:?}", g);
+        g.print();
+        let state = g.state();
+        if state != State::InProgress {
+            println!("{:?}", state);
+            return;
+        }
+        
+        let possibilities = next(&g);
+        let n = possibilities.len();
+        g = possibilities[rng.gen_range(0, n)].clone();
+    }
 }
 
 fn experiment_with_outcomes() {
