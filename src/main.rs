@@ -394,18 +394,18 @@ fn learn_parallel() -> Result<()> {
             if let Some((game, outcome)) = knowledge {
                 let mut known_wins = rw_known_wins.write().unwrap();
                 let mut known_draws = rw_known_draws.write().unwrap();
-                println!("Random fact: {:?} {:?}, total khits: {}, knowledge: {}", game, outcome, khits_total, known_wins.len() + known_draws.len());
+                println!("{:?} {:?}, T_hits: {}, T_kn: {}", game, outcome, khits_total, known_wins.len() + known_draws.len());
                 match outcome {
                     State::Draw => { known_draws.insert(pack(&game)); },
                     State::Win(p) => {
                         if p == game.t {
                             if !known_wins.insert(pack(&game)) {
-                                println!("got false knowledge");
+                                println!("could not derrive new knowledge");
                             }
                         } else {
                             for g in next(&game).into_iter() {
                                 if !known_wins.insert(pack(&g)) {
-                                    println!("got false knowledge");
+                                    println!("could not derrive new knowledge");
                                 }
                             }
                         }
