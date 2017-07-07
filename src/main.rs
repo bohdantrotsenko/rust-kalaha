@@ -14,7 +14,9 @@ use std::sync::*;
 use std::collections::*;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-const LIMIT:usize = 50_000; // how many games should I play till I gather all the required data
+const LIMIT:usize = 150_000; // how many games should I play till I gather all the required data
+const LCYCLES:usize = 10_000; // how many cycles to do before exiting
+const WINTERVAL:usize = 100; // how often persist the knowledge to disk
 
 type Player = [i8; 7]; // first 6 cells are regular cells, the last one is the super-cell
 
@@ -371,7 +373,7 @@ fn learn_parallel() -> Result<()> {
     let mut khits_total = 0;
     let cpu_cores = num_cpus::get();
 
-    for learning_round in 0..10_000 {
+    for learning_round in 0..LCYCLES {
         let mut results = VecDeque::new();
 
         // spawn the threads
@@ -413,7 +415,7 @@ fn learn_parallel() -> Result<()> {
             }
         }
 
-        if learning_round % 10 == 9 {
+        if learning_round % WINTERVAL == WINTERVAL - 1 {
             write_file(&rw_known_wins.read().unwrap(), "wins.u64")?;
             write_file(&rw_known_draws.read().unwrap(), "draws.u64")?;
         }
