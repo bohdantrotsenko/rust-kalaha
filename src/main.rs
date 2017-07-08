@@ -314,26 +314,27 @@ fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Opti
     let mut cache: HashMap<Game, State> = HashMap::with_capacity(LIMIT);
     let mut knowledge: Option<(Game, State)> = None;
     let mut khits = 0;
+    let mut l: usize = 0;
+    let mut r: usize = games.len();
+	let mut reach = r;
     loop {
-        if let Some(last) = games.pop() {
-            let mut limit = LIMIT;
-            let outcome = find_outcome_dfs(&last, &mut cache, &mut limit, known_wins, known_draws, &mut khits);
-            if limit == 0 {
-                break;
-            }
-            if outcome != State::InProgress {
-                knowledge = Some((last.clone(), outcome.clone()));
-            }
-        }
-        else {
-            println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
-            println!("GAME SOLVED");
-            println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
-            break;
-        }
+        if l >= r {
+	    	break; // nothing to look for
+		}
+		let cidx = l + (r - l) / 2;
+		let current = games[cidx];
+		let mut limit = LIMIT;
+		let outcome = find_outcome_dfs(&current, &mut cache, &mut limit, known_wins, known_draws, &mut khits);
+		if outcome != State::InProgress {
+			knowledge = Some((current.clone(), outcome.clone()));
+			reach = cidx;
+			// look further in lower part
+			r = cidx - 1;
+		} else {
+			// look further in upper part
+			l = cidx + 1;
+		}
     }
-    //println!("knowledge: {:?}, dist: {}", knowledge, games.len());
-    let reach: usize = games.len();
     (knowledge, khits, reach)
 }
 
