@@ -7,6 +7,7 @@ extern crate byteorder;
 
 use std::io::*;
 use std::fs::File;
+use std::cmp;
 //use std::io::prelude::*;
 use rand::Rng;
 use std::thread;
@@ -14,7 +15,7 @@ use std::sync::*;
 use std::collections::*;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-const LIMIT:usize = 150_000; // how many games should I play till I gather all the required data
+const LIMIT:usize = 50_000; // how many games should I play till I gather all the required data
 const LCYCLES:usize = 10_000; // how many cycles to do before exiting
 const WINTERVAL:usize = 100; // how often persist the knowledge to disk
 
@@ -290,7 +291,7 @@ fn find_outcome_dfs(g: &Game, cache: &mut HashMap<Game, State>, limit: &mut usiz
     best
 }
 
-fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Option<(Game, State)>, usize) {
+fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Option<(Game, State)>, usize, usize) {
     // given a set of positions with known outcome, get_knowledge derrives a new "knowledge":
     // it's the game and the outcome
     
@@ -331,7 +332,9 @@ fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Opti
             break;
         }
     }
-    (knowledge, khits)
+    //println!("knowledge: {:?}, dist: {}", knowledge, games.len());
+    let reach: usize = games.len();
+    (knowledge, khits, reach)
 }
 
 fn read_file(target: &mut HashSet<u64>, filename: &str) {
@@ -372,6 +375,7 @@ fn learn_parallel() -> Result<()> {
     let mut solved = false;
     let init_game = Game::new();
     let mut learning_round = 0;
+    let mut best_reach = std::usize::MAX;
     while !solved {
         let mut results = VecDeque::new();
 
@@ -388,9 +392,10 @@ fn learn_parallel() -> Result<()> {
 
         // get all the results
         while let Some(thread_handle) = results.pop_front() {
-            let (knowledge, khits0) = thread_handle.join().expect("child thread should complete");
+            let (knowledge, khits0, reach) = thread_handle.join().expect("child thread should complete");
             khits_total += khits0;
             if let Some((game, outcome)) = knowledge {
+                best_reach = cmp::min(best_reach, reach);
                 let mut known_wins = rw_known_wins.write().unwrap();
                 let mut known_draws = rw_known_draws.write().unwrap();
                 //println!("{:?} {:?}, hits: {}, T_kn: {}", game, outcome, khits0, known_wins.len() + known_draws.len());
@@ -422,7 +427,8 @@ fn learn_parallel() -> Result<()> {
         if learning_round % WINTERVAL == 0 {
             write_file(&rw_known_wins.read().unwrap(), "wins.u64")?;
             write_file(&rw_known_draws.read().unwrap(), "draws.u64")?;
-            println!("khits total: {}", khits_total);
+            println!("khits total: {}, best reach: {}", khits_total, best_reach);
+            best_reach = std::usize::MAX;
         }
     }
     write_file(&rw_known_wins.read().unwrap(), "wins.u64")?;
