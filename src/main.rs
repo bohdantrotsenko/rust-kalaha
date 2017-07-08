@@ -291,17 +291,17 @@ fn find_outcome_dfs(g: &Game, cache: &mut HashMap<Game, State>, limit: &mut usiz
 }
 
 fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Option<(Game, State)>, usize) {
+    // given a set of positions with known outcome, get_knowledge derrives a new "knowledge":
+    // it's the game and the outcome
+    
     let mut rng = rand::thread_rng();
     let mut games = Vec::new();
     let mut g = Game::new();
-    loop {
-        //println!("-----------------------------");
-        //println!("{:?}", g);
-        //g.print();
+    
+    loop { // this will generate a random play
         games.push(g);
         let state = g.state();
         if state != State::InProgress {
-            // println!("{:?}", state);
             break;
         }
 
@@ -318,12 +318,8 @@ fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Opti
             let mut limit = LIMIT;
             let outcome = find_outcome_dfs(&last, &mut cache, &mut limit, known_wins, known_draws, &mut khits);
             if limit == 0 {
-                // println!("reached limit");
                 break;
             }
-            // last.print();
-            // println!("Outcome: {:?}", outcome);
-            // println!("Positions in cache: {}, steps taken: {}", cache.len(), LIMIT - limit);
             if outcome != State::InProgress {
                 knowledge = Some((last.clone(), outcome.clone()));
             }
@@ -332,9 +328,9 @@ fn get_knowledge(known_wins: &HashSet<u64>, known_draws: &HashSet<u64>) -> (Opti
             println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
             println!("GAME SOLVED");
             println!("---  ---  ---  ---  ---  ---  ---  ---  ---  ---");
+            break;
         }
     }
-    // println!("Carried out knowledge: {:?}, khits no.: {}", knowledge, khits);
     (knowledge, khits)
 }
 
@@ -373,7 +369,10 @@ fn learn_parallel() -> Result<()> {
     let mut khits_total = 0;
     let cpu_cores = num_cpus::get();
 
-    for learning_round in 0..LCYCLES {
+    let mut solved = false;
+    let init_game = Game::new();
+    let mut learning_round = 0;
+    while !solved {
         let mut results = VecDeque::new();
 
         // spawn the threads
@@ -394,32 +393,40 @@ fn learn_parallel() -> Result<()> {
             if let Some((game, outcome)) = knowledge {
                 let mut known_wins = rw_known_wins.write().unwrap();
                 let mut known_draws = rw_known_draws.write().unwrap();
-                println!("{:?} {:?}, T_hits: {}, T_kn: {}", game, outcome, khits_total, known_wins.len() + known_draws.len());
+                //println!("{:?} {:?}, hits: {}, T_kn: {}", game, outcome, khits0, known_wins.len() + known_draws.len());
                 match outcome {
                     State::Draw => { known_draws.insert(pack(&game)); },
                     State::Win(p) => {
                         if p == game.t {
                             if !known_wins.insert(pack(&game)) {
-                                println!("could not derrive new knowledge");
+                                //println!("could not derrive new knowledge");
                             }
                         } else {
                             for g in next(&game).into_iter() {
                                 if !known_wins.insert(pack(&g)) {
-                                    println!("could not derrive new knowledge");
+                                    //println!("could not derrive new knowledge");
                                 }
                             }
                         }
                     },
                     _ => panic!("unexpected outcome"),
                 };
+                if game == init_game {
+		    solved = true;
+		    break;
+                }
             }
         }
 
-        if learning_round % WINTERVAL == WINTERVAL - 1 {
+        learning_round += 1;
+        if learning_round % WINTERVAL == 0 {
             write_file(&rw_known_wins.read().unwrap(), "wins.u64")?;
             write_file(&rw_known_draws.read().unwrap(), "draws.u64")?;
+            println!("khits total: {}", khits_total);
         }
     }
+    write_file(&rw_known_wins.read().unwrap(), "wins.u64")?;
+    write_file(&rw_known_draws.read().unwrap(), "draws.u64")?;
 
     Ok(())
 }
